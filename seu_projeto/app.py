@@ -3,324 +3,253 @@ import pandas as pd
 import os
 from datetime import datetime
 import plotly.express as px
+import plotly.graph_objects as go
 
 # ======================================================
-# CONFIGURAÇÃO DA PÁGINA
+# 1. SETUP E DESIGN SYSTEM (URRO BRANDING)
 # ======================================================
-st.set_page_config(
-    page_title="URRO Clothing | ERP",
-    layout="wide",
-    page_icon="🖤"
-)
+st.set_page_config(page_title="URRO Admin | Gestão de Marca", layout="wide", page_icon="🐾")
 
-# ======================================================
-# CSS CORPORATIVO (NEUTRO)
-# ======================================================
 st.markdown("""
 <style>
-html, body, [class*="css"] {
-    font-family: "Segoe UI", sans-serif;
-}
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;800&display=swap');
+    
+    html, body, [class*="css"] { font-family: 'Plus Jakarta Sans', sans-serif; }
+    .main { background-color: #F8F9FB; }
 
-section[data-testid="stSidebar"] {
-    background-color: #111111;
-}
+    /* Cartões de Métrica Premium */
+    [data-testid="stMetric"] {
+        background: white !important;
+        padding: 24px !important;
+        border-radius: 20px !important;
+        box-shadow: 0 10px 15px -3px rgba(0,0,0,0.03) !important;
+        border: 1px solid #F1F3F5 !important;
+    }
 
-section[data-testid="stSidebar"] * {
-    color: #ffffff;
-}
+    /* FORÇAR COR PRETA NOS NOMES E VALORES DAS MÉTRICAS */
+    [data-testid="stMetricLabel"] p { color: #000000 !important; }
+    [data-testid="stMetricValue"] div { color: #000000 !important; }
 
-section[data-testid="stSidebar"] h1 {
-    font-size: 26px;
-    letter-spacing: 4px;
-}
+    /* Sidebar Dark Stealth */
+    [data-testid="stSidebar"] { background-color: #0A0A0A !important; border-right: 1px solid #1A1A1A; }
+    [data-testid="stSidebar"] * { color: #8E8E93 !important; }
+    .st-emotion-cache-1cypcdm { color: white !important; }
 
-.stButton > button {
-    background-color: #2b2b2b;
-    color: #ffffff;
-    border-radius: 6px;
-    padding: 10px;
-    border: none;
-    font-weight: 500;
-}
+    /* Botões de Ação */
+    .stButton > button {
+        border-radius: 12px !important;
+        background-color: #111111 !important;
+        color: white !important;
+        font-weight: 700 !important;
+        padding: 14px 28px !important;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .stButton > button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 20px rgba(0,0,0,0.2);
+        background-color: #000000 !important;
+    }
 
-.stButton > button:hover {
-    background-color: #000000;
-}
-
-input, textarea, select {
-    border-radius: 6px !important;
-}
-
-.kpi-card {
-    background: #ffffff;
-    padding: 20px;
-    border-radius: 8px;
-    box-shadow: 0 2px 6px rgba(0,0,0,.08);
-    text-align: center;
-}
-
-.kpi-title {
-    font-size: 12px;
-    color: #6b6b6b;
-}
-
-.kpi-value {
-    font-size: 26px;
-    font-weight: bold;
-    margin-top: 6px;
-}
+    /* Alerta de Estoque Baixo */
+    .stock-alert {
+        background: #FFF5F5;
+        border: 1px solid #FEB2B2;
+        padding: 10px;
+        border-radius: 10px;
+        color: #C53030;
+        font-weight: 600;
+        margin-bottom: 10px;
+    }
 </style>
 """, unsafe_allow_html=True)
 
 # ======================================================
-# ARQUIVOS
+# 2. FUNÇÕES DE DADOS E CONFIGURAÇÕES
 # ======================================================
 ARQUIVO_ESTOQUE = "estoque_urro.csv"
 ARQUIVO_VENDAS = "historico_vendas_urro.csv"
 ARQUIVO_CAIXA = "fluxo_caixa_urro.csv"
+LOGO_PATH = "logo_urro.png" # Certifique-se de que o arquivo existe
 
-VENDEDORES = {
-    "0802": "Pedro Reino",
-    "3105": "Lucas Saboia",
-    "2810": "Gabriel Gomes"
-}
-
-MODELOS = [
-    "Preta Retrô", "Preta Strength", "Preta Become Gain",
-    "Preta Monkey Bad", "Preta Malboro",
-    "Branca Retrô", "Branca Become Gain",
-    "Branca Bomba", "Branca Jacô", "Branca Reveillon"
-]
-
+VENDEDORES = {"0802": "Pedro Reino", "3105": "Lucas Saboia", "0405": "Gabriel Gomes"}
+MODELOS = ["Preta Retrô", "Preta Strength", "Preta Become Gain", "Preta Monkey Bad", "Preta Malboro", "Branca Retrô", "Branca Become Gain", "Branca Bomba", "Branca Jacô", "Branca Reveillon"]
 TAMANHOS = ["P", "M", "G", "GG"]
 
-# ======================================================
-# FUNÇÕES
-# ======================================================
 def carregar_estoque():
     if os.path.exists(ARQUIVO_ESTOQUE):
-        try:
-            return pd.read_csv(
-                ARQUIVO_ESTOQUE,
-                sep=";",
-                encoding="utf-8"
-            )
-        except:
-            return pd.read_csv(
-                ARQUIVO_ESTOQUE,
-                sep=",",
-                encoding="latin1"
-            )
-
-    return pd.DataFrame({
-        "Produto": ["Camisa Oversized", "Camisa Suedine"],
-        "Quantidade": [100, 50],
-        "Preço Unitário": [80.0, 110.0]
-    })
+        df = pd.read_csv(ARQUIVO_ESTOQUE)
+        df.columns = [c.strip().capitalize() for c in df.columns]
+        df = df.set_index(df.columns[0])
+        return df
+    return pd.DataFrame({'Quantidade': [100, 50], 'Preço unitário': [80.0, 110.0]}, index=['Camisa Oversized', 'Camisa Suedine'])
 
 def carregar_vendas():
     if os.path.exists(ARQUIVO_VENDAS):
-        return pd.read_csv(ARQUIVO_VENDAS)
-    return pd.DataFrame(columns=[
-        'Data', 'Vendedor', 'Cliente', 'Produto',
-        'Modelo', 'Tamanho', 'Qtd', 'Desconto', 'Valor Total'
-    ])
+        df = pd.read_csv(ARQUIVO_VENDAS)
+        if not df.empty:
+            df['Data'] = pd.to_datetime(df['Data'], dayfirst=True, errors='coerce')
+        return df
+    return pd.DataFrame(columns=['Data', 'Vendedor', 'Cliente', 'Produto', 'Modelo', 'Tamanho', 'Qtd', 'Desconto', 'Valor Total'])
 
 def carregar_caixa():
-    if os.path.exists(ARQUIVO_CAIXA):
-        return pd.read_csv(ARQUIVO_CAIXA)
+    if os.path.exists(ARQUIVO_CAIXA): return pd.read_csv(ARQUIVO_CAIXA)
     return pd.DataFrame(columns=['Data', 'Vendedor', 'Tipo', 'Descrição', 'Valor'])
 
-def salvar(df, arquivo, index=False):
-    df.to_csv(arquivo, index=index)
+def salvar(df, arquivo, index=False): df.to_csv(arquivo, index=index)
 
 # ======================================================
-# SESSION STATE
+# 3. LÓGICA DE ACESSO (TELA DE LOGIN COM LOGO)
 # ======================================================
-if 'logado' not in st.session_state:
-    st.session_state.logado = False
-    st.session_state.vendedor = ""
+if 'logado' not in st.session_state: st.session_state.logado = False
+if 'vendedor' not in st.session_state: st.session_state.vendedor = ""
 
-# ======================================================
-# LOGIN
-# ======================================================
 if not st.session_state.logado:
     st.markdown("<br><br><br>", unsafe_allow_html=True)
-    _, c, _ = st.columns([1, 1.3, 1])
-
+    _, c, _ = st.columns([1, 0.8, 1])
     with c:
-        st.markdown("""
-        <div style="text-align:center; margin-bottom:30px;">
-            <h1 style="letter-spacing:6px;">URRO</h1>
-            <p style="margin-top:-15px; color:#6b6b6b;">CLOTHING</p>
-        </div>
-        """, unsafe_allow_html=True)
-
-        codigo = st.text_input("Código de Acesso", type="password")
-
-        if st.button("ACESSAR SISTEMA", use_container_width=True):
-            if codigo in VENDEDORES:
-                st.session_state.logado = True
-                st.session_state.vendedor = VENDEDORES[codigo]
-                st.rerun()
-            else:
-                st.error("Código inválido")
-
+        # Exibição da Logo na tela de Login
+        if os.path.exists(LOGO_PATH):
+            st.image(LOGO_PATH, use_container_width=True)
+        else:
+            st.markdown("<h1 style='text-align:center;'>URRO</h1>", unsafe_allow_html=True)
+            
+        st.markdown("<p style='text-align:center; letter-spacing:4px; color:#6b6b6b; margin-top:-15px;'>CLOTHING</p>", unsafe_allow_html=True)
+        
+        with st.container(border=True):
+            codigo = st.text_input("Acesso do Colaborador", type="password", placeholder="Digite seu código")
+            if st.button("ENTRAR NO SISTEMA", use_container_width=True):
+                if codigo in VENDEDORES:
+                    st.session_state.logado, st.session_state.vendedor = True, VENDEDORES[codigo]
+                    st.rerun()
+                else: st.error("Código inválido")
     st.stop()
 
-# ======================================================
-# CARREGAMENTO
-# ======================================================
 df_estoque = carregar_estoque()
 df_vendas = carregar_vendas()
 df_caixa = carregar_caixa()
 
 # ======================================================
-# SIDEBAR
+# 4. SIDEBAR E NAVEGAÇÃO (COM LOGO)
 # ======================================================
 with st.sidebar:
-    st.markdown("<h1>URRO</h1><p style='margin-top:-20px;'>CLOTHING</p>", unsafe_allow_html=True)
-    st.write(f"👤 **{st.session_state.vendedor}**")
+    # Exibição da Logo no topo da Sidebar
+    if os.path.exists(LOGO_PATH):
+        st.image(LOGO_PATH, use_container_width=True)
+    else:
+        st.markdown("<h1 style='color:white; font-weight:800; margin-bottom:0;'>URRO</h1>", unsafe_allow_html=True)
+    
+    st.markdown("<small style='color:#555;'>ADMIN DASHBOARD</small>", unsafe_allow_html=True)
+    st.markdown(f"<div style='background:#1A1A1A; padding:15px; border-radius:12px; margin:20px 0;'>👤 <b>{st.session_state.vendedor}</b></div>", unsafe_allow_html=True)
+    
+    aba = st.radio("MENU PRINCIPAL", ["📊 Dashboard", "🛒 Ponto de Venda", "📦 Estoque", "💰 Financeiro", "📄 Relatórios"])
     st.divider()
-
-    aba = st.radio(
-        "NAVEGAÇÃO",
-        ["📊 Painel Geral", "💸 Vendas", "💰 Caixa", "📦 Estoque", "📄 Relatórios"]
-    )
-
-    if st.button("🚪 Logout"):
+    if st.button("Sair"):
         st.session_state.logado = False
         st.rerun()
 
 # ======================================================
-# PAINEL GERAL
+# 5. DASHBOARD
 # ======================================================
-if aba == "📊 Painel Geral":
-    st.title("Painel Geral")
+if aba == "📊 Dashboard":
+    st.markdown("<h2 style='font-weight:800;'>Panorama Estratégico</h2>", unsafe_allow_html=True)
+    
+    low_stock = df_estoque[df_estoque['Quantidade'] < 5].index.tolist()
+    if low_stock:
+        for item in low_stock:
+            st.markdown(f"<div class='stock-alert'>⚠️ Estoque Crítico: {item}</div>", unsafe_allow_html=True)
 
-    faturamento = df_vendas['Valor Total'].sum()
-    entradas = df_caixa[df_caixa['Tipo'] == 'Entrada']['Valor'].sum()
-    saidas = df_caixa[df_caixa['Tipo'] == 'Saída']['Valor'].sum()
-    saldo = (faturamento + entradas) - saidas
+    faturamento = df_vendas['Valor Total'].sum() if not df_vendas.empty else 0
+    estoque_total = int(df_estoque['Quantidade'].sum())
+    ticket_medio = faturamento / len(df_vendas) if not df_vendas.empty else 0
 
-    c1, c2, c3 = st.columns(3)
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Faturamento", f"R$ {faturamento:,.2f}")
+    c2.metric("Peças em Estoque", f"{estoque_total} un")
+    c3.metric("Ticket Médio", f"R$ {ticket_medio:,.2f}")
+    c4.metric("Total Vendas", len(df_vendas))
 
-    with c1:
-        st.markdown(f"""
-        <div class="kpi-card">
-            <div class="kpi-title">Faturamento Total</div>
-            <div class="kpi-value">R$ {faturamento:,.2f}</div>
-        </div>
-        """, unsafe_allow_html=True)
+    st.markdown("<br>", unsafe_allow_html=True)
+    col_vendas, col_ranking = st.columns([2, 1])
+    
+    with col_vendas:
+        with st.container(border=True):
+            st.subheader("📈 Tendência de Crescimento")
+            if not df_vendas.empty:
+                df_vendas_diarias = df_vendas.groupby(df_vendas['Data'].dt.date)['Valor Total'].sum().reset_index()
+                fig = px.area(df_vendas_diarias, x='Data', y='Valor Total', color_discrete_sequence=['#111111'])
+                fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', height=300, margin=dict(l=0,r=0,t=10,b=0))
+                st.plotly_chart(fig, use_container_width=True)
+            else: st.info("Aguardando primeiras vendas...")
 
-    with c2:
-        st.markdown(f"""
-        <div class="kpi-card">
-            <div class="kpi-title">Saldo em Caixa</div>
-            <div class="kpi-value">R$ {saldo:,.2f}</div>
-        </div>
-        """, unsafe_allow_html=True)
-
-    with c3:
-        st.markdown(f"""
-        <div class="kpi-card">
-            <div class="kpi-title">Peças em Estoque</div>
-            <div class="kpi-value">{int(df_estoque['Quantidade'].sum())}</div>
-        </div>
-        """, unsafe_allow_html=True)
-
-# ======================================================
-# VENDAS
-# ======================================================
-elif aba == "💸 Vendas":
-    st.title("Ponto de Venda")
-
-    colA, colB = st.columns([2, 1])
-
-    with colA:
-        cliente = st.text_input("Cliente")
-        produto = st.selectbox("Produto", df_estoque.index)
-        modelo = st.selectbox("Modelo", MODELOS)
-        tamanho = st.selectbox("Tamanho", TAMANHOS)
-        qtd = st.number_input("Quantidade", min_value=1)
-
-    with colB:
-        preco = float(df_estoque.loc[produto, 'Preço Unitário'])
-        desconto = st.number_input("Desconto (R$)", min_value=0.0)
-        total = (qtd * preco) - desconto
-
-        st.metric("Preço Unitário", f"R$ {preco:.2f}")
-        st.metric("Total da Venda", f"R$ {max(0,total):.2f}")
-
-    if st.button("FINALIZAR VENDA", use_container_width=True):
-        if df_estoque.loc[produto, 'Quantidade'] >= qtd:
-            df_estoque.loc[produto, 'Quantidade'] -= qtd
-            salvar(df_estoque, ARQUIVO_ESTOQUE, index=True)
-
-            nova = {
-                'Data': datetime.now().strftime("%d/%m/%Y %H:%M"),
-                'Vendedor': st.session_state.vendedor,
-                'Cliente': cliente,
-                'Produto': produto,
-                'Modelo': modelo,
-                'Tamanho': tamanho,
-                'Qtd': qtd,
-                'Desconto': desconto,
-                'Valor Total': total
-            }
-
-            df_vendas = pd.concat([df_vendas, pd.DataFrame([nova])], ignore_index=True)
-            salvar(df_vendas, ARQUIVO_VENDAS)
-
-            st.success("Venda realizada com sucesso!")
-            st.rerun()
-        else:
-            st.error("Estoque insuficiente")
+    with col_ranking:
+        with st.container(border=True):
+            st.subheader("👕 Modelos em Alta")
+            if not df_vendas.empty:
+                df_prod = df_vendas.groupby('Modelo')['Qtd'].sum().reset_index().sort_values('Qtd', ascending=True)
+                fig_bar = px.bar(df_prod, x='Qtd', y='Modelo', orientation='h', color_discrete_sequence=['#111111'])
+                fig_bar.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', height=300, margin=dict(l=0,r=0,t=10,b=0))
+                st.plotly_chart(fig_bar, use_container_width=True)
+            else: st.info("Sem dados.")
 
 # ======================================================
-# CAIXA
+# 6. PONTO DE VENDA (PDV)
 # ======================================================
-elif aba == "💰 Caixa":
-    st.title("Fluxo de Caixa")
-
-    tipo = st.selectbox("Tipo", ["Entrada", "Saída"])
-    desc = st.text_input("Descrição")
-    valor = st.number_input("Valor", min_value=0.0)
-
-    if st.button("Registrar", use_container_width=True):
-        novo = {
-            'Data': datetime.now().strftime("%d/%m/%Y"),
-            'Vendedor': st.session_state.vendedor,
-            'Tipo': tipo,
-            'Descrição': desc,
-            'Valor': valor
-        }
-        df_caixa = pd.concat([df_caixa, pd.DataFrame([novo])], ignore_index=True)
-        salvar(df_caixa, ARQUIVO_CAIXA)
-        st.rerun()
-
-    st.dataframe(df_caixa, use_container_width=True)
+elif aba == "🛒 Ponto de Venda":
+    st.markdown("<h2 style='font-weight:800;'>Nova Operação</h2>", unsafe_allow_html=True)
+    
+    with st.container(border=True):
+        col_form, col_recibo = st.columns([2, 1.2])
+        with col_form:
+            cliente = st.text_input("Cliente", placeholder="Nome ou Instagram")
+            categoria = st.selectbox("Categoria de Camisa", df_estoque.index)
+            c1, c2, c3 = st.columns(3)
+            mod = c1.selectbox("Modelo", MODELOS)
+            tam = c2.selectbox("Tamanho", TAMANHOS)
+            qtd = c3.number_input("Quantidade", min_value=1, value=1)
+        
+        with col_recibo:
+            st.markdown("### Resumo do Pedido")
+            preco_un = float(df_estoque.loc[categoria, 'Preço unitário'])
+            desc = st.number_input("Desconto (R$)", min_value=0.0, step=5.0)
+            total = (qtd * preco_un) - desc
+            
+            st.markdown(f"""
+                <div style='background:#F8F9FB; padding:20px; border-radius:12px; border: 1px solid #EEE;'>
+                    <small style='color:#666;'>TOTAL A PAGAR</small>
+                    <h1 style='color:#111; margin:0;'>R$ {max(0,total):,.2f}</h1>
+                    <small>Preço unit: R$ {preco_un:.2f}</small>
+                </div>
+            """, unsafe_allow_html=True)
+            
+            st.markdown("<br>", unsafe_allow_html=True)
+            if st.button("CONCLUIR VENDA", use_container_width=True):
+                if df_estoque.loc[categoria, 'Quantidade'] >= qtd:
+                    df_estoque.loc[categoria, 'Quantidade'] -= qtd
+                    salvar(df_estoque, ARQUIVO_ESTOQUE, index=True)
+                    nova_venda = {'Data': datetime.now().strftime("%d/%m/%Y %H:%M"), 'Vendedor': st.session_state.vendedor, 'Cliente': cliente, 
+                                 'Produto': categoria, 'Modelo': mod, 'Tamanho': tam, 'Qtd': qtd, 'Desconto': desc, 'Valor Total': total}
+                    df_vendas = pd.concat([df_vendas, pd.DataFrame([nova_venda])], ignore_index=True)
+                    salvar(df_vendas, ARQUIVO_VENDAS)
+                    st.success("Venda finalizada!")
+                    st.balloons()
+                    st.rerun()
+                else: st.error("Estoque Insuficiente!")
 
 # ======================================================
-# RELATÓRIOS
-# ======================================================
-elif aba == "📄 Relatórios":
-    st.title("Relatórios de Vendas")
-    st.dataframe(df_vendas, use_container_width=True)
-
-    if not df_vendas.empty:
-        fig = px.pie(df_vendas, values="Valor Total", names="Vendedor", hole=0.4)
-        st.plotly_chart(fig, use_container_width=True)
-
-# ======================================================
-# ESTOQUE
+# 7. OUTRAS ABAS
 # ======================================================
 elif aba == "📦 Estoque":
-    st.title("Gestão de Estoque")
+    st.title("📦 Inventário Urro")
+    with st.container(border=True):
+        df_edit = st.data_editor(df_estoque, use_container_width=True)
+        if st.button("Salvar Modificações"):
+            salvar(df_edit, ARQUIVO_ESTOQUE, index=True)
+            st.success("Estoque atualizado!")
 
-    df_edit = st.data_editor(df_estoque, use_container_width=True)
+elif aba == "💰 Financeiro":
+    st.title("💰 Gestão de Caixa")
+    st.dataframe(df_caixa, use_container_width=True)
 
-    if st.button("Salvar Estoque", use_container_width=True):
-        salvar(df_edit, ARQUIVO_ESTOQUE, index=True)
-        st.success("Estoque atualizado!")
+elif aba == "📄 Relatórios":
+    st.title("📄 Histórico Detalhado")
+    st.dataframe(df_vendas, use_container_width=True)
