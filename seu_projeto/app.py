@@ -26,7 +26,6 @@ st.markdown("""
         border: 1px solid #F1F3F5 !important;
     }
 
-    /* FORÇAR COR PRETA NOS NOMES E VALORES DAS MÉTRICAS */
     [data-testid="stMetricLabel"] p { color: #000000 !important; }
     [data-testid="stMetricValue"] div { color: #000000 !important; }
 
@@ -69,7 +68,7 @@ st.markdown("""
 ARQUIVO_ESTOQUE = "estoque_urro.csv"
 ARQUIVO_VENDAS = "historico_vendas_urro.csv"
 ARQUIVO_CAIXA = "fluxo_caixa_urro.csv"
-LOGO_PATH = "logo_urro.png" # Certifique-se de que o arquivo existe
+LOGO_PATH = "logo_urro.png" 
 
 VENDEDORES = {"0802": "Pedro Reino", "3105": "Lucas Saboia", "0405": "Gabriel Gomes"}
 MODELOS = ["Preta Retrô", "Preta Strength", "Preta Become Gain", "Preta Monkey Bad", "Preta Malboro", "Branca Retrô", "Branca Become Gain", "Branca Bomba", "Branca Jacô", "Branca Reveillon"]
@@ -92,13 +91,15 @@ def carregar_vendas():
     return pd.DataFrame(columns=['Data', 'Vendedor', 'Cliente', 'Produto', 'Modelo', 'Tamanho', 'Qtd', 'Desconto', 'Valor Total'])
 
 def carregar_caixa():
-    if os.path.exists(ARQUIVO_CAIXA): return pd.read_csv(ARQUIVO_CAIXA)
+    if os.path.exists(ARQUIVO_CAIXA):
+        return pd.read_csv(ARQUIVO_CAIXA)
     return pd.DataFrame(columns=['Data', 'Vendedor', 'Tipo', 'Descrição', 'Valor'])
 
-def salvar(df, arquivo, index=False): df.to_csv(arquivo, index=index)
+def salvar(df, arquivo, index=False):
+    df.to_csv(arquivo, index=index)
 
 # ======================================================
-# 3. LÓGICA DE ACESSO (TELA DE LOGIN COM LOGO)
+# 3. LÓGICA DE ACESSO
 # ======================================================
 if 'logado' not in st.session_state: st.session_state.logado = False
 if 'vendedor' not in st.session_state: st.session_state.vendedor = ""
@@ -107,12 +108,11 @@ if not st.session_state.logado:
     st.markdown("<br><br><br>", unsafe_allow_html=True)
     _, c, _ = st.columns([1, 0.8, 1])
     with c:
-        # Exibição da Logo na tela de Login
         if os.path.exists(LOGO_PATH):
             st.image(LOGO_PATH, use_container_width=True)
         else:
             st.markdown("<h1 style='text-align:center;'>URRO</h1>", unsafe_allow_html=True)
-            
+        
         st.markdown("<p style='text-align:center; letter-spacing:4px; color:#6b6b6b; margin-top:-15px;'>CLOTHING</p>", unsafe_allow_html=True)
         
         with st.container(border=True):
@@ -129,10 +129,9 @@ df_vendas = carregar_vendas()
 df_caixa = carregar_caixa()
 
 # ======================================================
-# 4. SIDEBAR E NAVEGAÇÃO (COM LOGO)
+# 4. SIDEBAR E NAVEGAÇÃO
 # ======================================================
 with st.sidebar:
-    # Exibição da Logo no topo da Sidebar
     if os.path.exists(LOGO_PATH):
         st.image(LOGO_PATH, use_container_width=True)
     else:
@@ -224,32 +223,99 @@ elif aba == "🛒 Ponto de Venda":
             st.markdown("<br>", unsafe_allow_html=True)
             if st.button("CONCLUIR VENDA", use_container_width=True):
                 if df_estoque.loc[categoria, 'Quantidade'] >= qtd:
+                    # 1. Atualiza Estoque
                     df_estoque.loc[categoria, 'Quantidade'] -= qtd
                     salvar(df_estoque, ARQUIVO_ESTOQUE, index=True)
-                    nova_venda = {'Data': datetime.now().strftime("%d/%m/%Y %H:%M"), 'Vendedor': st.session_state.vendedor, 'Cliente': cliente, 
+                    
+                    # 2. Registra Venda
+                    data_atual = datetime.now().strftime("%d/%m/%Y %H:%M")
+                    nova_venda = {'Data': data_atual, 'Vendedor': st.session_state.vendedor, 'Cliente': cliente, 
                                  'Produto': categoria, 'Modelo': mod, 'Tamanho': tam, 'Qtd': qtd, 'Desconto': desc, 'Valor Total': total}
                     df_vendas = pd.concat([df_vendas, pd.DataFrame([nova_venda])], ignore_index=True)
                     salvar(df_vendas, ARQUIVO_VENDAS)
-                    st.success("Venda finalizada!")
+                    
+                    # 3. Registra Entrada no Caixa Automática
+                    nova_mov = {
+                        'Data': data_atual,
+                        'Vendedor': st.session_state.vendedor,
+                        'Tipo': 'Entrada',
+                        'Descrição': f"Venda: {mod} ({cliente})",
+                        'Valor': total
+                    }
+                    df_caixa = pd.concat([df_caixa, pd.DataFrame([nova_mov])], ignore_index=True)
+                    salvar(df_caixa, ARQUIVO_CAIXA)
+
+                    st.success("Venda finalizada e caixa atualizado!")
                     st.balloons()
                     st.rerun()
                 else: st.error("Estoque Insuficiente!")
 
 # ======================================================
-# 7. OUTRAS ABAS
+# 7. ESTOQUE
 # ======================================================
 elif aba == "📦 Estoque":
-    st.title("📦 Inventário Urro")
+    st.markdown("<h2 style='font-weight:800;'>📦 Inventário Urro</h2>", unsafe_allow_html=True)
     with st.container(border=True):
         df_edit = st.data_editor(df_estoque, use_container_width=True)
         if st.button("Salvar Modificações"):
             salvar(df_edit, ARQUIVO_ESTOQUE, index=True)
             st.success("Estoque atualizado!")
 
+# ======================================================
+# 8. FINANCEIRO (ENTRADAS E SAÍDAS)
+# ======================================================
 elif aba == "💰 Financeiro":
-    st.title("💰 Gestão de Caixa")
-    st.dataframe(df_caixa, use_container_width=True)
+    st.markdown("<h2 style='font-weight:800;'>💰 Gestão de Caixa</h2>", unsafe_allow_html=True)
+    
+    # Formulário de Nova Movimentação
+    with st.container(border=True):
+        st.subheader("➕ Nova Movimentação Manual")
+        f1, f2, f3, f4 = st.columns([1, 2, 1, 1])
+        
+        with f1:
+            tipo_mov = st.selectbox("Tipo", ["Entrada", "Saída"])
+        with f2:
+            desc_mov = st.text_input("Descrição da Operação", placeholder="Ex: Pagamento Frete, Compra de Tecido...")
+        with f3:
+            valor_mov = st.number_input("Valor (R$)", min_value=0.0, step=10.0)
+        with f4:
+            st.markdown("<br>", unsafe_allow_html=True)
+            if st.button("REGISTRAR", use_container_width=True):
+                if desc_mov:
+                    nova_mov = {
+                        'Data': datetime.now().strftime("%d/%m/%Y %H:%M"),
+                        'Vendedor': st.session_state.vendedor,
+                        'Tipo': tipo_mov,
+                        'Descrição': desc_mov,
+                        'Valor': valor_mov if tipo_mov == "Entrada" else -valor_mov
+                    }
+                    df_caixa = pd.concat([df_caixa, pd.DataFrame([nova_mov])], ignore_index=True)
+                    salvar(df_caixa, ARQUIVO_CAIXA)
+                    st.success("Movimentação registrada!")
+                    st.rerun()
+                else:
+                    st.error("Descreva a operação.")
 
+    # Resumo Financeiro
+    if not df_caixa.empty:
+        entradas = df_caixa[df_caixa['Valor'] > 0]['Valor'].sum()
+        saidas = df_caixa[df_caixa['Valor'] < 0]['Valor'].sum()
+        saldo = entradas + saidas
+        
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Total Entradas", f"R$ {entradas:,.2f}")
+        c2.metric("Total Saídas", f"R$ {abs(saidas):,.2f}", delta_color="inverse")
+        c3.metric("Saldo em Caixa", f"R$ {saldo:,.2f}")
+
+        st.markdown("<br>", unsafe_allow_html=True)
+        st.subheader("📜 Fluxo de Caixa Detalhado")
+        st.dataframe(df_caixa.sort_values('Data', ascending=False), use_container_width=True, hide_index=True)
+    else:
+        st.info("Sem movimentações no caixa.")
+
+# ======================================================
+# 9. RELATÓRIOS
+# ======================================================
 elif aba == "📄 Relatórios":
-    st.title("📄 Histórico Detalhado")
-    st.dataframe(df_vendas, use_container_width=True)
+    st.markdown("<h2 style='font-weight:800;'>📄 Histórico de Vendas</h2>", unsafe_allow_html=True)
+    st.dataframe(df_vendas.sort_values('Data', ascending=False), use_container_width=True, hide_index=True)
