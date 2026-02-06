@@ -65,7 +65,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-## ======================================================
+# ======================================================
 # 2. FUNÇÕES DE DADOS E CONFIGURAÇÕES (ADAPTADO PARA GOOGLE SHEETS)
 # ======================================================
 ARQUIVO_ESTOQUE = "estoque_urro.csv"
@@ -74,20 +74,18 @@ ARQUIVO_CAIXA = "fluxo_caixa_urro.csv"
 LOGO_PATH = "logo_urro.png" 
 
 # --- LÓGICA DE CONEXÃO SEGURA ---
-# Criamos uma cópia das secrets em um dicionário comum (que permite alteração)
+# Criamos uma cópia das secrets para evitar o erro "Secrets does not support item assignment"
 if "connections" in st.secrets and "gsheets" in st.secrets.connections:
     creds = dict(st.secrets.connections.gsheets)
-    # Removemos o erro de formatação da chave privada (trocando \n de texto por quebra de linha real)
     if "private_key" in creds:
         creds["private_key"] = creds["private_key"].replace("\\n", "\n")
     
-    # Iniciamos a conexão passando as credenciais limpas via **kwargs
+    # Iniciamos a conexão passando as credenciais corrigidas
     conn = st.connection("gsheets", type=GSheetsConnection, **creds)
 else:
-    # Fallback caso as secrets não estejam configuradas ainda
     conn = st.connection("gsheets", type=GSheetsConnection)
 
-# --- FUNÇÕES DE CARREGAMENTO ---
+# --- FUNÇÕES DE DADOS ---
 def carregar_estoque():
     try:
         df = conn.read(worksheet="Estoque", ttl=0)
@@ -119,10 +117,15 @@ def carregar_caixa():
     return pd.DataFrame(columns=['Data', 'Vendedor', 'Tipo', 'Descrição', 'Valor', 'Metodo'])
 
 def salvar(df, arquivo, index=False):
-    # Mapeia o nome do arquivo para a aba correta da planilha
     aba = "Estoque" if arquivo == ARQUIVO_ESTOQUE else ("Vendas" if arquivo == ARQUIVO_VENDAS else "Caixa")
     df_para_salvar = df.reset_index() if index else df
     conn.update(worksheet=aba, data=df_para_salvar)
+
+def converter_para_excel(df):
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+        df.to_excel(writer, index=False, sheet_name='Relatorio_Urro')
+    return output.getvalue()
 
 VENDEDORES = {
    "0802": "Pedro Reino",
@@ -133,48 +136,6 @@ VENDEDORES = {
 MODELOS = ["Preta Retrô", "Preta Strength", "Preta Become Gain", "Preta Monkey Bad", "Preta Malboro", "Branca Retrô", "Branca Become Gain", "Branca Bomba", "Branca Jacô", "Branca Reveillon"]
 TAMANHOS = ["P", "M", "G", "GG"]
 FORMAS_PAGAMENTO = ["Pix", "Cartão de Crédito", "Cartão de Débito", "Dinheiro", "Fiado / A Pagar"]
-
-def carregar_estoque():
-    try:
-        df = conn.read(worksheet="Estoque", ttl=0)
-        if not df.empty:
-            df.columns = [c.strip().capitalize() for c in df.columns]
-            df = df.set_index(df.columns[0])
-            return df
-    except: pass
-    return pd.DataFrame({
-        'Quantidade': [100, 50], 
-        'Preço unitário': [80.0, 110.0],
-        'Custo unitário': [40.0, 55.0]
-    }, index=['Camisa Oversized', 'Camisa Suedine'])
-
-def carregar_vendas():
-    try:
-        df = conn.read(worksheet="Vendas", ttl=0)
-        if not df.empty:
-            df['Data'] = pd.to_datetime(df['Data'], dayfirst=True, errors='coerce')
-            return df
-    except: pass
-    return pd.DataFrame(columns=['Data', 'Vendedor', 'Cliente', 'Produto', 'Modelo', 'Tamanho', 'Qtd', 'Desconto', 'Valor Total', 'Pagamento', 'Lucro'])
-
-def carregar_caixa():
-    try:
-        df = conn.read(worksheet="Caixa", ttl=0)
-        if not df.empty: return df
-    except: pass
-    return pd.DataFrame(columns=['Data', 'Vendedor', 'Tipo', 'Descrição', 'Valor', 'Metodo'])
-
-def salvar(df, arquivo, index=False):
-    # Mapeia o nome do arquivo para a aba correta da planilha
-    aba = "Estoque" if arquivo == ARQUIVO_ESTOQUE else ("Vendas" if arquivo == ARQUIVO_VENDAS else "Caixa")
-    df_para_salvar = df.reset_index() if index else df
-    conn.update(worksheet=aba, data=df_para_salvar)
-
-def converter_para_excel(df):
-    output = io.BytesIO()
-    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-        df.to_excel(writer, index=False, sheet_name='Relatorio_Urro')
-    return output.getvalue()
 
 # ======================================================
 # 3. LÓGICA DE ACESSO
@@ -463,7 +424,7 @@ elif aba == "👥 Devedores":
    else:
        st.success("Tudo certo! Ninguém devendo no momento.")
 
-# Bloco de Diagnóstico Temporário
+# Bloco de Diagnóstico
 if "connections" in st.secrets:
     credenciais = st.secrets.connections.gsheets
     st.sidebar.write("### 🛠️ Debug de Conexão")
