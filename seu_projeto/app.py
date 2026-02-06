@@ -414,3 +414,13 @@ elif aba == "👥 Devedores":
        st.dataframe(df_dividas[['Data', 'Cliente', 'Modelo', 'Valor Total']], use_container_width=True)
    else:
        st.success("Tudo certo! Ninguém devendo no momento.")
+
+# Bloco de Diagnóstico Temporário
+if "connections" in st.secrets:
+    credenciais = st.secrets.connections.gsheets
+    st.sidebar.write("### 🛠️ Debug de Conexão")
+    st.sidebar.write(f"Chave detectada: {credenciais.get('private_key', '')[:25]}...")
+    if "\\n" in credenciais.get("private_key", ""):
+        st.sidebar.error("❌ Erro: O Streamlit está lendo o '\\n' como texto puro. Use aspas duplas nas Secrets.")
+    else:
+        st.sidebar.success("✅ Formato da chave parece correto.")
