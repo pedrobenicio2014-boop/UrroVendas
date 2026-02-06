@@ -73,18 +73,19 @@ ARQUIVO_VENDAS = "historico_vendas_urro.csv"
 ARQUIVO_CAIXA = "fluxo_caixa_urro.csv"
 LOGO_PATH = "logo_urro.png" 
 
-# --- LÓGICA DE CONEXÃO SEGURA ---
-# Criamos uma cópia das secrets para limpar a chave sem erro de imutabilidade
-if "connections" in st.secrets and "gsheets" in st.secrets.connections:
-    creds = dict(st.secrets.connections.gsheets)
-    if "private_key" in creds:
-        creds["private_key"] = creds["private_key"].replace("\\n", "\n")
-    
-    conn = st.connection("gsheets", type=GSheetsConnection, **creds)
-else:
-    conn = st.connection("gsheets", type=GSheetsConnection)
+# Conexão simplificada: o Streamlit buscará automaticamente em [connections.gsheets]
+conn = st.connection("gsheets", type=GSheetsConnection)
 
-# --- FUNÇÕES DE CARREGAMENTO ---
+VENDEDORES = {
+   "0802": "Pedro Reino",
+   "0808": "Lucas Saboia",
+   "0405": "Gabriel Gomes"
+}
+
+MODELOS = ["Preta Retrô", "Preta Strength", "Preta Become Gain", "Preta Monkey Bad", "Preta Malboro", "Branca Retrô", "Branca Become Gain", "Branca Bomba", "Branca Jacô", "Branca Reveillon"]
+TAMANHOS = ["P", "M", "G", "GG"]
+FORMAS_PAGAMENTO = ["Pix", "Cartão de Crédito", "Cartão de Débito", "Dinheiro", "Fiado / A Pagar"]
+
 def carregar_estoque():
     try:
         df = conn.read(worksheet="Estoque", ttl=0)
@@ -125,16 +126,6 @@ def converter_para_excel(df):
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
         df.to_excel(writer, index=False, sheet_name='Relatorio_Urro')
     return output.getvalue()
-
-VENDEDORES = {
-   "0802": "Pedro Reino",
-   "0808": "Lucas Saboia",
-   "0405": "Gabriel Gomes"
-}
-
-MODELOS = ["Preta Retrô", "Preta Strength", "Preta Become Gain", "Preta Monkey Bad", "Preta Malboro", "Branca Retrô", "Branca Become Gain", "Branca Bomba", "Branca Jacô", "Branca Reveillon"]
-TAMANHOS = ["P", "M", "G", "GG"]
-FORMAS_PAGAMENTO = ["Pix", "Cartão de Crédito", "Cartão de Débito", "Dinheiro", "Fiado / A Pagar"]
 
 # ======================================================
 # 3. LÓGICA DE ACESSO
@@ -422,13 +413,3 @@ elif aba == "👥 Devedores":
        st.dataframe(df_dividas[['Data', 'Cliente', 'Modelo', 'Valor Total']], use_container_width=True)
    else:
        st.success("Tudo certo! Ninguém devendo no momento.")
-
-# Bloco de Diagnóstico Lateral
-if "connections" in st.secrets:
-    cred_diag = st.secrets.connections.gsheets
-    st.sidebar.write("### 🛠️ Debug de Conexão")
-    st.sidebar.write(f"Chave detectada: {cred_diag.get('private_key', '')[:25]}...")
-    if "\\n" in cred_diag.get("private_key", ""):
-        st.sidebar.error("❌ Erro: Chave lida como texto puro.")
-    else:
-        st.sidebar.success("✅ Conexão ativa.")
