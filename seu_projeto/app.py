@@ -74,18 +74,17 @@ ARQUIVO_CAIXA = "fluxo_caixa_urro.csv"
 LOGO_PATH = "logo_urro.png" 
 
 # --- LÓGICA DE CONEXÃO SEGURA ---
-# Criamos uma cópia das secrets para evitar o erro "Secrets does not support item assignment"
+# Criamos uma cópia das secrets para limpar a chave sem erro de imutabilidade
 if "connections" in st.secrets and "gsheets" in st.secrets.connections:
     creds = dict(st.secrets.connections.gsheets)
     if "private_key" in creds:
         creds["private_key"] = creds["private_key"].replace("\\n", "\n")
     
-    # Iniciamos a conexão passando as credenciais corrigidas
     conn = st.connection("gsheets", type=GSheetsConnection, **creds)
 else:
     conn = st.connection("gsheets", type=GSheetsConnection)
 
-# --- FUNÇÕES DE DADOS ---
+# --- FUNÇÕES DE CARREGAMENTO ---
 def carregar_estoque():
     try:
         df = conn.read(worksheet="Estoque", ttl=0)
@@ -424,12 +423,12 @@ elif aba == "👥 Devedores":
    else:
        st.success("Tudo certo! Ninguém devendo no momento.")
 
-# Bloco de Diagnóstico
+# Bloco de Diagnóstico Lateral
 if "connections" in st.secrets:
-    credenciais = st.secrets.connections.gsheets
+    cred_diag = st.secrets.connections.gsheets
     st.sidebar.write("### 🛠️ Debug de Conexão")
-    st.sidebar.write(f"Chave detectada: {credenciais.get('private_key', '')[:25]}...")
-    if "\\n" in credenciais.get("private_key", ""):
-        st.sidebar.error("❌ Erro: O Streamlit está lendo o '\\n' como texto puro. Use aspas duplas nas Secrets.")
+    st.sidebar.write(f"Chave detectada: {cred_diag.get('private_key', '')[:25]}...")
+    if "\\n" in cred_diag.get("private_key", ""):
+        st.sidebar.error("❌ Erro: Chave lida como texto puro.")
     else:
-        st.sidebar.success("✅ Formato da chave parece correto.")
+        st.sidebar.success("✅ Conexão ativa.")
