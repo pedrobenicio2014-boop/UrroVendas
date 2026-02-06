@@ -5,6 +5,7 @@ from datetime import datetime
 import plotly.express as px
 import plotly.graph_objects as go
 import io
+from streamlit_gsheets import GSheetsConnection
 
 # ======================================================
 # 1. SETUP E DESIGN SYSTEM (URRO BRANDING)
@@ -65,12 +66,15 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ======================================================
-# 2. FUNÇÕES DE DADOS E CONFIGURAÇÕES
+# 2. FUNÇÕES DE DADOS E CONFIGURAÇÕES (ADAPTADO PARA GOOGLE SHEETS)
 # ======================================================
 ARQUIVO_ESTOQUE = "estoque_urro.csv"
 ARQUIVO_VENDAS = "historico_vendas_urro.csv"
 ARQUIVO_CAIXA = "fluxo_caixa_urro.csv"
 LOGO_PATH = "logo_urro.png" 
+
+# Conexão com Google Sheets
+conn = st.connection("gsheets", type=GSheetsConnection)
 
 VENDEDORES = {
    "0802": "Pedro Reino",
@@ -80,40 +84,43 @@ VENDEDORES = {
 
 MODELOS = ["Preta Retrô", "Preta Strength", "Preta Become Gain", "Preta Monkey Bad", "Preta Malboro", "Branca Retrô", "Branca Become Gain", "Branca Bomba", "Branca Jacô", "Branca Reveillon"]
 TAMANHOS = ["P", "M", "G", "GG"]
-# Adicionado Fiado para o controle de devedores
 FORMAS_PAGAMENTO = ["Pix", "Cartão de Crédito", "Cartão de Débito", "Dinheiro", "Fiado / A Pagar"]
 
 def carregar_estoque():
-   if os.path.exists(ARQUIVO_ESTOQUE):
-       try:
-           df = pd.read_csv(ARQUIVO_ESTOQUE)
-           df.columns = [c.strip().capitalize() for c in df.columns]
-           df = df.set_index(df.columns[0])
-           return df
-       except: pass
-   return pd.DataFrame({
-       'Quantidade': [100, 50], 
-       'Preço unitário': [80.0, 110.0],
-       'Custo unitário': [40.0, 55.0]
-   }, index=['Camisa Oversized', 'Camisa Suedine'])
+    try:
+        df = conn.read(worksheet="Estoque", ttl=0)
+        if not df.empty:
+            df.columns = [c.strip().capitalize() for c in df.columns]
+            df = df.set_index(df.columns[0])
+            return df
+    except: pass
+    return pd.DataFrame({
+        'Quantidade': [100, 50], 
+        'Preço unitário': [80.0, 110.0],
+        'Custo unitário': [40.0, 55.0]
+    }, index=['Camisa Oversized', 'Camisa Suedine'])
 
 def carregar_vendas():
-   if os.path.exists(ARQUIVO_VENDAS):
-       try:
-           df = pd.read_csv(ARQUIVO_VENDAS)
-           if not df.empty:
-               df['Data'] = pd.to_datetime(df['Data'], dayfirst=True, errors='coerce')
-               return df
-       except: pass
-   return pd.DataFrame(columns=['Data', 'Vendedor', 'Cliente', 'Produto', 'Modelo', 'Tamanho', 'Qtd', 'Desconto', 'Valor Total', 'Pagamento', 'Lucro'])
+    try:
+        df = conn.read(worksheet="Vendas", ttl=0)
+        if not df.empty:
+            df['Data'] = pd.to_datetime(df['Data'], dayfirst=True, errors='coerce')
+            return df
+    except: pass
+    return pd.DataFrame(columns=['Data', 'Vendedor', 'Cliente', 'Produto', 'Modelo', 'Tamanho', 'Qtd', 'Desconto', 'Valor Total', 'Pagamento', 'Lucro'])
 
 def carregar_caixa():
-   if os.path.exists(ARQUIVO_CAIXA):
-       try: return pd.read_csv(ARQUIVO_CAIXA)
-       except: pass
-   return pd.DataFrame(columns=['Data', 'Vendedor', 'Tipo', 'Descrição', 'Valor', 'Metodo'])
+    try:
+        df = conn.read(worksheet="Caixa", ttl=0)
+        if not df.empty: return df
+    except: pass
+    return pd.DataFrame(columns=['Data', 'Vendedor', 'Tipo', 'Descrição', 'Valor', 'Metodo'])
 
-def salvar(df, arquivo, index=False): df.to_csv(arquivo, index=index)
+def salvar(df, arquivo, index=False):
+    # Mapeia o nome do arquivo para a aba correta da planilha
+    aba = "Estoque" if arquivo == ARQUIVO_ESTOQUE else ("Vendas" if arquivo == ARQUIVO_VENDAS else "Caixa")
+    df_para_salvar = df.reset_index() if index else df
+    conn.update(worksheet=aba, data=df_para_salvar)
 
 def converter_para_excel(df):
     output = io.BytesIO()
@@ -237,7 +244,6 @@ elif aba == "🛒 Ponto de Venda":
            desc = st.number_input("Desconto (R$)", min_value=0.0, step=5.0)
            total = (qtd * preco_un) - desc
            
-           # Cálculo automático do lucro baseado no custo
            custo_un = float(df_estoque.loc[categoria, 'Custo unitário'])
            lucro_venda = total - (qtd * custo_un)
           
@@ -252,11 +258,9 @@ elif aba == "🛒 Ponto de Venda":
            st.markdown("<br>", unsafe_allow_html=True)
            if st.button("CONCLUIR VENDA", use_container_width=True):
                if df_estoque.loc[categoria, 'Quantidade'] >= qtd:
-                   # 1. Baixa no Estoque
                    df_estoque.loc[categoria, 'Quantidade'] -= qtd
                    salvar(df_estoque, ARQUIVO_ESTOQUE, index=True)
                    
-                   # 2. Registra a Venda
                    nova_venda = {
                         'Data': datetime.now().strftime("%d/%m/%Y %H:%M"), 
                         'Vendedor': st.session_state.vendedor, 
@@ -273,7 +277,6 @@ elif aba == "🛒 Ponto de Venda":
                    df_vendas = pd.concat([df_vendas, pd.DataFrame([nova_venda])], ignore_index=True)
                    salvar(df_vendas, ARQUIVO_VENDAS)
                    
-                   # 3. Registra no Financeiro Automático (Apenas se não for Fiado)
                    if pagamento != "Fiado / A Pagar":
                        nova_mov_caixa = {
                            'Data': datetime.now().strftime("%d/%m/%Y"), 
@@ -328,7 +331,6 @@ elif aba == "💰 Financeiro":
         tipo_mov = st.selectbox("Tipo", ["Entrada", "Saída"])
         desc_mov = st.text_input("Descrição", placeholder="Ex: Compra de tecido, aluguel...")
     with col2:
-        # KEY ÚNICA para evitar DuplicateElementId
         valor_mov = st.number_input("Valor (R$)", min_value=0.0, step=10.0, format="%.2f", key="valor_manual_fin_pd")
         metodo_mov = st.selectbox("Método", FORMAS_PAGAMENTO)
         data_mov = st.date_input("Data", value=datetime.now())
@@ -360,14 +362,12 @@ elif aba == "💰 Financeiro":
 elif aba == "📄 Relatórios":
    st.title("📄 Histórico Detalhado")
    
-   # Filtros de Busca
    with st.container(border=True):
        st.markdown("🔍 **Busca Avançada**")
        col_b1, col_b2 = st.columns(2)
        filtro_nome = col_b1.text_input("Filtrar por Cliente", placeholder="Nome ou @insta")
        filtro_modelo = col_b2.multiselect("Filtrar por Modelos", MODELOS)
 
-   # Aplicação da filtragem
    df_final = df_vendas.copy()
    if filtro_nome:
        df_final = df_final[df_final['Cliente'].str.contains(filtro_nome, case=False, na=False)]
@@ -389,12 +389,11 @@ elif aba == "📄 Relatórios":
    st.dataframe(df_final, use_container_width=True)
 
 # ======================================================
-# 10. DEVEDORES (CONTROLE DE QUEM ESTÁ DEVENDO)
+# 10. DEVEDORES
 # ======================================================
 elif aba == "👥 Devedores":
    st.title("👥 Controle de Clientes Devedores")
    
-   # Filtra vendas marcadas como fiado
    df_dividas = df_vendas[df_vendas['Pagamento'] == "Fiado / A Pagar"].copy()
    
    if not df_dividas.empty:
@@ -407,7 +406,6 @@ elif aba == "👥 Devedores":
        """, unsafe_allow_html=True)
        
        st.markdown("### Ranking de Devedores")
-       # Agrupa por cliente para ver o saldo devedor
        df_nomes_div = df_dividas.groupby('Cliente')['Valor Total'].sum().reset_index().sort_values('Valor Total', ascending=False)
        st.dataframe(df_nomes_div, use_container_width=True, hide_index=True)
        
