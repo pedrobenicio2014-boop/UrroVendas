@@ -73,11 +73,10 @@ ARQUIVO_VENDAS = "historico_vendas_urro.csv"
 ARQUIVO_CAIXA = "fluxo_caixa_urro.csv"
 LOGO_PATH = "logo_urro.png" 
 
-# LÓGICA DE CONEXÃO: Criamos um dicionário editável para limpar a private_key
+# --- LÓGICA DE CONEXÃO SEGURA ---
 if "connections" in st.secrets and "gsheets" in st.secrets.connections:
     creds = dict(st.secrets.connections.gsheets)
     if "private_key" in creds:
-        # Forçamos a conversão de \n de texto para quebra de linha real
         creds["private_key"] = creds["private_key"].replace("\\n", "\n")
     conn = st.connection("gsheets", type=GSheetsConnection, **creds)
 else:
@@ -124,9 +123,6 @@ def converter_para_excel(df):
         df.to_excel(writer, index=False, sheet_name='Relatorio_Urro')
     return output.getvalue()
 
-# ======================================================
-# 3. LÓGICA DE ACESSO
-# ======================================================
 VENDEDORES = {
    "0802": "Pedro Reino",
    "0808": "Lucas Saboia",
@@ -137,6 +133,9 @@ MODELOS = ["Preta Retrô", "Preta Strength", "Preta Become Gain", "Preta Monkey 
 TAMANHOS = ["P", "M", "G", "GG"]
 FORMAS_PAGAMENTO = ["Pix", "Cartão de Crédito", "Cartão de Débito", "Dinheiro", "Fiado / A Pagar"]
 
+# ======================================================
+# 3. LÓGICA DE ACESSO
+# ======================================================
 if 'logado' not in st.session_state: st.session_state.logado = False
 if 'vendedor' not in st.session_state: st.session_state.vendedor = ""
 
@@ -149,7 +148,6 @@ if not st.session_state.logado:
        else:
            st.markdown("<h1 style='text-align:center;'>URRO</h1>", unsafe_allow_html=True)
        st.markdown("<p style='text-align:center; letter-spacing:4px; color:#6b6b6b; margin-top:-15px;'>CLOTHING</p>", unsafe_allow_html=True)
-      
        with st.container(border=True):
            codigo = st.text_input("Acesso do Colaborador", type="password", placeholder="Digite seu código").strip()
            if st.button("ENTRAR NO SISTEMA", use_container_width=True):
@@ -235,7 +233,6 @@ elif aba == "🛒 Ponto de Venda":
            tam = c2.selectbox("Tamanho", TAMANHOS)
            qtd = c3.number_input("Quantidade", min_value=1, value=1)
            pagamento = st.selectbox("Forma de Pagamento", FORMAS_PAGAMENTO)
-      
        with col_recibo:
            st.markdown("### Resumo do Pedido")
            preco_un = float(df_estoque.loc[categoria, 'Preço unitário'])
@@ -347,3 +344,13 @@ elif aba == "👥 Devedores":
        st.markdown(f"<div style='background:#FFF5F5; padding:25px; border-radius:15px; border:1px solid #FEB2B2;'>TOTAL A RECEBER: R$ {total_fiado:,.2f}</div>", unsafe_allow_html=True)
        st.dataframe(df_dividas[['Data', 'Cliente', 'Modelo', 'Valor Total']], use_container_width=True)
    else: st.success("Ninguém devendo!")
+
+# Bloco de Diagnóstico Lateral
+if "connections" in st.secrets:
+    cred_diag = st.secrets.connections.gsheets
+    st.sidebar.write("### 🛠️ Debug de Conexão")
+    st.sidebar.write(f"Chave detectada: {cred_diag.get('private_key', '')[:25]}...")
+    if "\\n" in cred_diag.get("private_key", ""):
+        st.sidebar.error("❌ Erro: Chave lida como texto puro.")
+    else:
+        st.sidebar.success("✅ Conexão ativa.")
