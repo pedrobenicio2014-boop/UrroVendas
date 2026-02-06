@@ -73,18 +73,15 @@ ARQUIVO_VENDAS = "historico_vendas_urro.csv"
 ARQUIVO_CAIXA = "fluxo_caixa_urro.csv"
 LOGO_PATH = "logo_urro.png" 
 
-# Conexão simplificada: o Streamlit buscará automaticamente em [connections.gsheets]
-conn = st.connection("gsheets", type=GSheetsConnection)
-
-VENDEDORES = {
-   "0802": "Pedro Reino",
-   "0808": "Lucas Saboia",
-   "0405": "Gabriel Gomes"
-}
-
-MODELOS = ["Preta Retrô", "Preta Strength", "Preta Become Gain", "Preta Monkey Bad", "Preta Malboro", "Branca Retrô", "Branca Become Gain", "Branca Bomba", "Branca Jacô", "Branca Reveillon"]
-TAMANHOS = ["P", "M", "G", "GG"]
-FORMAS_PAGAMENTO = ["Pix", "Cartão de Crédito", "Cartão de Débito", "Dinheiro", "Fiado / A Pagar"]
+# LÓGICA DE CONEXÃO: Criamos um dicionário editável para limpar a private_key
+if "connections" in st.secrets and "gsheets" in st.secrets.connections:
+    creds = dict(st.secrets.connections.gsheets)
+    if "private_key" in creds:
+        # Forçamos a conversão de \n de texto para quebra de linha real
+        creds["private_key"] = creds["private_key"].replace("\\n", "\n")
+    conn = st.connection("gsheets", type=GSheetsConnection, **creds)
+else:
+    conn = st.connection("gsheets", type=GSheetsConnection)
 
 def carregar_estoque():
     try:
@@ -130,6 +127,16 @@ def converter_para_excel(df):
 # ======================================================
 # 3. LÓGICA DE ACESSO
 # ======================================================
+VENDEDORES = {
+   "0802": "Pedro Reino",
+   "0808": "Lucas Saboia",
+   "0405": "Gabriel Gomes"
+}
+
+MODELOS = ["Preta Retrô", "Preta Strength", "Preta Become Gain", "Preta Monkey Bad", "Preta Malboro", "Branca Retrô", "Branca Become Gain", "Branca Bomba", "Branca Jacô", "Branca Reveillon"]
+TAMANHOS = ["P", "M", "G", "GG"]
+FORMAS_PAGAMENTO = ["Pix", "Cartão de Crédito", "Cartão de Débito", "Dinheiro", "Fiado / A Pagar"]
+
 if 'logado' not in st.session_state: st.session_state.logado = False
 if 'vendedor' not in st.session_state: st.session_state.vendedor = ""
 
@@ -141,7 +148,6 @@ if not st.session_state.logado:
            st.image(LOGO_PATH, use_container_width=True)
        else:
            st.markdown("<h1 style='text-align:center;'>URRO</h1>", unsafe_allow_html=True)
-          
        st.markdown("<p style='text-align:center; letter-spacing:4px; color:#6b6b6b; margin-top:-15px;'>CLOTHING</p>", unsafe_allow_html=True)
       
        with st.container(border=True):
@@ -165,10 +171,8 @@ with st.sidebar:
        st.image(LOGO_PATH, use_container_width=True)
    else:
        st.markdown("<h1 style='color:white; font-weight:800; margin-bottom:0;'>URRO</h1>", unsafe_allow_html=True)
-  
    st.markdown("<small style='color:#555;'>ADMIN DASHBOARD</small>", unsafe_allow_html=True)
    st.markdown(f"<div style='background:#1A1A1A; padding:15px; border-radius:12px; margin:20px 0;'>👤 <b>{st.session_state.vendedor}</b></div>", unsafe_allow_html=True)
-  
    aba = st.radio("MENU PRINCIPAL", ["📊 Dashboard", "🛒 Ponto de Venda", "📦 Estoque", "💰 Financeiro", "📄 Relatórios", "👥 Devedores"])
    st.divider()
    if st.button("Sair"):
@@ -180,7 +184,6 @@ with st.sidebar:
 # ======================================================
 if aba == "📊 Dashboard":
    st.markdown("<h2 style='font-weight:800;'>Panorama Estratégico</h2>", unsafe_allow_html=True)
-  
    low_stock = df_estoque[df_estoque['Quantidade'] < 5].index.tolist()
    if low_stock:
        for item in low_stock:
@@ -189,8 +192,6 @@ if aba == "📊 Dashboard":
    faturamento = df_vendas['Valor Total'].sum() if not df_vendas.empty else 0
    lucro_total = df_vendas['Lucro'].sum() if 'Lucro' in df_vendas.columns else 0
    estoque_total = int(df_estoque['Quantidade'].sum())
-   ticket_medio = faturamento / len(df_vendas) if not df_vendas.empty else 0
-
    c1, c2, c3, c4 = st.columns(4)
    c1.metric("Faturamento", f"R$ {faturamento:,.2f}")
    c2.metric("Peças em Estoque", f"{estoque_total} un")
@@ -199,7 +200,6 @@ if aba == "📊 Dashboard":
 
    st.markdown("<br>", unsafe_allow_html=True)
    col_vendas, col_ranking = st.columns([2, 1])
-  
    with col_vendas:
        with st.container(border=True):
            st.subheader("📈 Tendência de Crescimento")
@@ -225,7 +225,6 @@ if aba == "📊 Dashboard":
 # ======================================================
 elif aba == "🛒 Ponto de Venda":
    st.markdown("<h2 style='font-weight:800;'>Nova Operação</h2>", unsafe_allow_html=True)
-  
    with st.container(border=True):
        col_form, col_recibo = st.columns([2, 1.2])
        with col_form:
@@ -242,10 +241,8 @@ elif aba == "🛒 Ponto de Venda":
            preco_un = float(df_estoque.loc[categoria, 'Preço unitário'])
            desc = st.number_input("Desconto (R$)", min_value=0.0, step=5.0)
            total = (qtd * preco_un) - desc
-           
            custo_un = float(df_estoque.loc[categoria, 'Custo unitário'])
            lucro_venda = total - (qtd * custo_un)
-          
            st.markdown(f"""
                <div style='background:#F8F9FB; padding:20px; border-radius:12px; border: 1px solid #EEE;'>
                    <small style='color:#666;'>TOTAL A PAGAR</small>
@@ -253,41 +250,28 @@ elif aba == "🛒 Ponto de Venda":
                    <small>Pagamento: {pagamento}</small>
                </div>
            """, unsafe_allow_html=True)
-          
            st.markdown("<br>", unsafe_allow_html=True)
            if st.button("CONCLUIR VENDA", use_container_width=True):
                if df_estoque.loc[categoria, 'Quantidade'] >= qtd:
                    df_estoque.loc[categoria, 'Quantidade'] -= qtd
                    salvar(df_estoque, ARQUIVO_ESTOQUE, index=True)
-                   
                    nova_venda = {
                         'Data': datetime.now().strftime("%d/%m/%Y %H:%M"), 
-                        'Vendedor': st.session_state.vendedor, 
-                        'Cliente': cliente, 
-                        'Produto': categoria, 
-                        'Modelo': mod, 
-                        'Tamanho': tam, 
-                        'Qtd': qtd, 
-                        'Desconto': desc, 
-                        'Valor Total': total,
-                        'Pagamento': pagamento,
-                        'Lucro': lucro_venda
+                        'Vendedor': st.session_state.vendedor, 'Cliente': cliente, 
+                        'Produto': categoria, 'Modelo': mod, 'Tamanho': tam, 
+                        'Qtd': qtd, 'Desconto': desc, 'Valor Total': total,
+                        'Pagamento': pagamento, 'Lucro': lucro_venda
                     }
                    df_vendas = pd.concat([df_vendas, pd.DataFrame([nova_venda])], ignore_index=True)
                    salvar(df_vendas, ARQUIVO_VENDAS)
-                   
                    if pagamento != "Fiado / A Pagar":
                        nova_mov_caixa = {
                            'Data': datetime.now().strftime("%d/%m/%Y"), 
-                           'Vendedor': st.session_state.vendedor, 
-                           'Tipo': 'Entrada', 
-                           'Descrição': f"Venda: {mod} ({cliente})", 
-                           'Valor': total, 
-                           'Metodo': pagamento
+                           'Vendedor': st.session_state.vendedor, 'Tipo': 'Entrada', 
+                           'Descrição': f"Venda: {mod} ({cliente})", 'Valor': total, 'Metodo': pagamento
                        }
                        df_caixa = pd.concat([df_caixa, pd.DataFrame([nova_mov_caixa])], ignore_index=True)
                        salvar(df_caixa, ARQUIVO_CAIXA)
-
                    st.success("Venda finalizada!")
                    st.balloons()
                    st.rerun()
@@ -309,107 +293,57 @@ elif aba == "📦 Estoque":
 # ======================================================
 elif aba == "💰 Financeiro":
     st.title("💰 Gestão de Caixa")
-
     if not df_caixa.empty:
         df_caixa["Valor"] = pd.to_numeric(df_caixa["Valor"], errors="coerce").fillna(0)
-
     entradas = df_caixa[df_caixa["Tipo"] == "Entrada"]["Valor"].sum()
     saidas = df_caixa[df_caixa["Tipo"] == "Saída"]["Valor"].sum()
     saldo = entradas - saidas
-
     c1, c2, c3 = st.columns(3)
     c1.metric("Entradas", f"R$ {entradas:,.2f}")
     c2.metric("Saídas", f"R$ {saidas:,.2f}")
     c3.metric("Saldo Atual", f"R$ {saldo:,.2f}")
-
     st.divider()
-
     st.markdown("### ➕ Nova Movimentação")
     col1, col2 = st.columns(2)
     with col1:
         tipo_mov = st.selectbox("Tipo", ["Entrada", "Saída"])
-        desc_mov = st.text_input("Descrição", placeholder="Ex: Compra de tecido, aluguel...")
+        desc_mov = st.text_input("Descrição", placeholder="Ex: Compra de tecido...")
     with col2:
-        valor_mov = st.number_input("Valor (R$)", min_value=0.0, step=10.0, format="%.2f", key="valor_manual_fin_pd")
+        valor_mov = st.number_input("Valor (R$)", min_value=0.0, step=10.0, format="%.2f", key="v_manual")
         metodo_mov = st.selectbox("Método", FORMAS_PAGAMENTO)
         data_mov = st.date_input("Data", value=datetime.now())
-
     if st.button("Registrar Movimentação", use_container_width=True):
         if valor_mov > 0 and desc_mov:
             nova_mov = {
-                "Data": data_mov.strftime("%d/%m/%Y"),
-                "Vendedor": st.session_state.vendedor,
-                "Tipo": tipo_mov,
-                "Descrição": desc_mov,
-                "Valor": float(valor_mov),
-                "Metodo": metodo_mov
+                "Data": data_mov.strftime("%d/%m/%Y"), "Vendedor": st.session_state.vendedor,
+                "Tipo": tipo_mov, "Descrição": desc_mov, "Valor": float(valor_mov), "Metodo": metodo_mov
             }
             df_caixa = pd.concat([df_caixa, pd.DataFrame([nova_mov])], ignore_index=True)
             salvar(df_caixa, ARQUIVO_CAIXA)
-            st.success("Movimentação registrada!")
+            st.success("Registrado!")
             st.rerun()
-        else:
-            st.error("Informe descrição e valor válido.")
-
-    st.divider()
-    st.markdown("### 📊 Histórico Financeiro")
-    st.dataframe(df_caixa.sort_values("Data", ascending=False), use_container_width=True)
 
 # ======================================================
 # 9. RELATÓRIOS
 # ======================================================
 elif aba == "📄 Relatórios":
    st.title("📄 Histórico Detalhado")
-   
-   with st.container(border=True):
-       st.markdown("🔍 **Busca Avançada**")
-       col_b1, col_b2 = st.columns(2)
-       filtro_nome = col_b1.text_input("Filtrar por Cliente", placeholder="Nome ou @insta")
-       filtro_modelo = col_b2.multiselect("Filtrar por Modelos", MODELOS)
-
    df_final = df_vendas.copy()
-   if filtro_nome:
-       df_final = df_final[df_final['Cliente'].str.contains(filtro_nome, case=False, na=False)]
-   if filtro_modelo:
-       df_final = df_final[df_final['Modelo'].isin(filtro_modelo)]
-   
    col_header, col_btn = st.columns([4, 1])
    with col_btn:
        if not df_final.empty:
            excel_file = converter_para_excel(df_final)
-           st.download_button(
-               label="📥 EXPORTAR FILTRADO",
-               data=excel_file,
-               file_name=f"relatorio_urro_{datetime.now().strftime('%Y%m%d')}.xlsx",
-               mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-               use_container_width=True
-           )
-   
+           st.download_button(label="📥 EXPORTAR", data=excel_file, file_name=f"relatorio_urro.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
    st.dataframe(df_final, use_container_width=True)
 
 # ======================================================
 # 10. DEVEDORES
 # ======================================================
 elif aba == "👥 Devedores":
-   st.title("👥 Controle de Clientes Devedores")
-   
+   st.title("👥 Controle de Devedores")
    df_dividas = df_vendas[df_vendas['Pagamento'] == "Fiado / A Pagar"].copy()
-   
    if not df_dividas.empty:
        total_fiado = df_dividas['Valor Total'].sum()
-       st.markdown(f"""
-           <div style='background:#FFF5F5; padding:25px; border-radius:15px; border:1px solid #FEB2B2; margin-bottom:20px;'>
-               <small style='color:#C53030;'>TOTAL A RECEBER NA RUA</small>
-               <h1 style='color:#C53030; margin:0;'>R$ {total_fiado:,.2f}</h1>
-           </div>
-       """, unsafe_allow_html=True)
-       
-       st.markdown("### Ranking de Devedores")
-       df_nomes_div = df_dividas.groupby('Cliente')['Valor Total'].sum().reset_index().sort_values('Valor Total', ascending=False)
-       st.dataframe(df_nomes_div, use_container_width=True, hide_index=True)
-       
-       st.divider()
-       st.markdown("### Histórico de Fiados")
+       st.markdown(f"<div style='background:#FFF5F5; padding:25px; border-radius:15px; border:1px solid #FEB2B2;'>TOTAL A RECEBER: R$ {total_fiado:,.2f}</div>", unsafe_allow_html=True)
        st.dataframe(df_dividas[['Data', 'Cliente', 'Modelo', 'Valor Total']], use_container_width=True)
-   else:
-       st.success("Tudo certo! Ninguém devendo no momento.")
+   else: st.success("Ninguém devendo!")
