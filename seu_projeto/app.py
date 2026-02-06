@@ -65,7 +65,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# ======================================================
+## ======================================================
 # 2. FUNÇÕES DE DADOS E CONFIGURAÇÕES (ADAPTADO PARA GOOGLE SHEETS)
 # ======================================================
 ARQUIVO_ESTOQUE = "estoque_urro.csv"
@@ -73,12 +73,56 @@ ARQUIVO_VENDAS = "historico_vendas_urro.csv"
 ARQUIVO_CAIXA = "fluxo_caixa_urro.csv"
 LOGO_PATH = "logo_urro.png" 
 
-# Conexão com Google Sheets
-# Correção automática da chave antes da conexão
+# --- LÓGICA DE CONEXÃO SEGURA ---
+# Criamos uma cópia das secrets em um dicionário comum (que permite alteração)
 if "connections" in st.secrets and "gsheets" in st.secrets.connections:
-    st.secrets.connections.gsheets["private_key"] = st.secrets.connections.gsheets["private_key"].replace("\\n", "\n")
+    creds = dict(st.secrets.connections.gsheets)
+    # Removemos o erro de formatação da chave privada (trocando \n de texto por quebra de linha real)
+    if "private_key" in creds:
+        creds["private_key"] = creds["private_key"].replace("\\n", "\n")
+    
+    # Iniciamos a conexão passando as credenciais limpas via **kwargs
+    conn = st.connection("gsheets", type=GSheetsConnection, **creds)
+else:
+    # Fallback caso as secrets não estejam configuradas ainda
+    conn = st.connection("gsheets", type=GSheetsConnection)
 
-conn = st.connection("gsheets", type=GSheetsConnection)
+# --- FUNÇÕES DE CARREGAMENTO ---
+def carregar_estoque():
+    try:
+        df = conn.read(worksheet="Estoque", ttl=0)
+        if not df.empty:
+            df.columns = [c.strip().capitalize() for c in df.columns]
+            df = df.set_index(df.columns[0])
+            return df
+    except: pass
+    return pd.DataFrame({
+        'Quantidade': [100, 50], 
+        'Preço unitário': [80.0, 110.0],
+        'Custo unitário': [40.0, 55.0]
+    }, index=['Camisa Oversized', 'Camisa Suedine'])
+
+def carregar_vendas():
+    try:
+        df = conn.read(worksheet="Vendas", ttl=0)
+        if not df.empty:
+            df['Data'] = pd.to_datetime(df['Data'], dayfirst=True, errors='coerce')
+            return df
+    except: pass
+    return pd.DataFrame(columns=['Data', 'Vendedor', 'Cliente', 'Produto', 'Modelo', 'Tamanho', 'Qtd', 'Desconto', 'Valor Total', 'Pagamento', 'Lucro'])
+
+def carregar_caixa():
+    try:
+        df = conn.read(worksheet="Caixa", ttl=0)
+        if not df.empty: return df
+    except: pass
+    return pd.DataFrame(columns=['Data', 'Vendedor', 'Tipo', 'Descrição', 'Valor', 'Metodo'])
+
+def salvar(df, arquivo, index=False):
+    # Mapeia o nome do arquivo para a aba correta da planilha
+    aba = "Estoque" if arquivo == ARQUIVO_ESTOQUE else ("Vendas" if arquivo == ARQUIVO_VENDAS else "Caixa")
+    df_para_salvar = df.reset_index() if index else df
+    conn.update(worksheet=aba, data=df_para_salvar)
 
 VENDEDORES = {
    "0802": "Pedro Reino",
